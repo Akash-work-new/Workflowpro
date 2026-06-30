@@ -34,9 +34,21 @@ app.use(helmet({
   crossOriginResourcePolicy: false, // Allow loading local uploads in frontend
 }));
 
-// CORS Configuration
+// CORS Configuration — allow Vercel deployments + localhost
+const allowedOrigins = [
+  /^https:\/\/.*\.vercel\.app$/,   // All Vercel preview & production URLs
+  /^http:\/\/localhost(:\d+)?$/,   // Local development
+  /^http:\/\/127\.0\.0\.1(:\d+)?$/ // Local development alt
+];
 app.use(cors({
-  origin: '*', // Allow all origins for dev simplicity
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    if (!origin) return callback(null, true);
+    const allowed = allowedOrigins.some((pattern) =>
+      typeof pattern === 'string' ? pattern === origin : pattern.test(origin)
+    );
+    callback(null, allowed ? origin : false);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   credentials: true,
 }));
