@@ -1,0 +1,366 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User Entity
+model User {
+  id                     String             @id @default(uuid())
+  employeeId             String             @unique
+  name                   String
+  email                  String             @unique
+  passwordHash           String
+  phoneNumber            String?
+  designation            String
+  joiningDate            DateTime           @default(now())
+  profilePhoto           String?
+  status                 String             @default("ACTIVE") // ACTIVE, INACTIVE, ON_LEAVE, BREAK, MEETING
+  
+  // Two-Factor Authentication
+  twoFactorSecret        String?
+  isTwoFactorEnabled     Boolean            @default(false)
+  isEmailVerified        Boolean            @default(false)
+  emailVerificationToken String?
+  passwordResetToken     String?
+  
+  // Relations
+  roleId                 String
+  role                   Role               @relation(fields: [roleId], references: [id])
+  
+  departmentId           String?
+  department             Department?        @relation("DepartmentEmployees", fields: [departmentId], references: [id])
+  
+  managerId              String?
+  manager                User?              @relation("UserReportingHierarchy", fields: [managerId], references: [id])
+  subordinates           User[]             @relation("UserReportingHierarchy")
+  
+  managedDepartments     Department[]       @relation("DepartmentManager")
+  managedTeams           Team[]             @relation("TeamLead")
+  teamMembers            TeamMember[]
+  
+  assignedTasks          Task[]             @relation("AssignedTo")
+  createdTasks           Task[]             @relation("AssignedBy")
+  watchedTasks           TaskWatcher[]
+  taskComments           TaskComment[]
+  taskAttachments        TaskAttachment[]
+  timeLogs               TimeLog[]
+  performanceGoals       PerformanceGoal[]  @relation("PerformanceGoals")
+  reviewedGoals          PerformanceGoal[]  @relation("ReviewedGoals")
+  performanceReviews     PerformanceReview[] @relation("ReviewedEmployee")
+  writtenReviews         PerformanceReview[] @relation("Reviewer")
+  auditLogs              AuditLog[]
+  taskHistories          TaskHistory[]
+  notifications          Notification[]
+  savedFilters           SavedFilter[]
+  
+  managedProjects        Project[]          @relation("ProjectManager")
+  
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([email])
+  @@index([employeeId])
+}
+
+// RBAC Role Entity
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // SUPER_ADMIN, ADMIN, TEAM_LEAD, AGENT
+  permissions String   // List of actions allowed (JSON stringified array)
+  users       User[]
+}
+
+// Department Entity
+model Department {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  
+  managerId   String?
+  manager     User?     @relation("DepartmentManager", fields: [managerId], references: [id])
+  
+  employees   User[]    @relation("DepartmentEmployees")
+  teams       Team[]
+  projects    Project[]
+}
+
+// Team Entity (Nested inside departments)
+model Team {
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  departmentId String
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  
+  leadId       String?
+  lead         User?        @relation("TeamLead", fields: [leadId], references: [id])
+  members      TeamMember[]
+}
+
+// TeamMember Junction Table
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
+
+  @@unique([teamId, userId])
+}
+
+// Project Entity
+model Project {
+  id               String        @id @default(uuid())
+  name             String        @unique
+  description      String?
+  departmentId     String
+  department       Department    @relation(fields: [departmentId], references: [id])
+  
+  projectManagerId String
+  projectManager   User          @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  
+  startDate        DateTime
+  endDate          DateTime
+  status           String        @default("PLANNING") // PLANNING, ACTIVE, PAUSED, COMPLETED
+  customStatuses   String        // JSON string array of extra statuses
+  
+  tasks            Task[]
+  sprints          Sprint[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+// Sprint Entity (Scrum/Agile management)
+model Sprint {
+  id        String       @id @default(uuid())
+  name      String
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  status    String       @default("PLANNING") // PLANNING, ACTIVE, COMPLETED
+  tasks     Task[]
+}
+
+// Task Entity
+model Task {
+  id             String         @id @default(uuid())
+  taskIndex      Int            // For simple JIRA-like IDs
+  title          String
+  description    String?
+  priority       String         @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW
+  category       String?        // Bug, Story, Task, Feature
+  status         String         @default("BACKLOG") // BACKLOG, OPEN, IN_PROGRESS, BLOCKED, WAITING_FOR_REVIEW, TESTING, COMPLETED, CLOSED, CANCELLED
+  
+  projectId      String
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  sprintId       String?
+  sprint         Sprint?        @relation(fields: [sprintId], references: [id])
+  
+  assignedById   String
+  assignedBy     User           @relation("AssignedBy", fields: [assignedById], references: [id])
+  
+  assignedToId   String?
+  assignedTo     User?          @relation("AssignedTo", fields: [assignedToId], references: [id])
+  
+  startDate      DateTime?
+  dueDate        DateTime?
+  estimatedHours Float?
+  actualHours    Float          @default(0.0)
+  
+  tags           String         // Array of tags (JSON stringified array)
+  customFields   String?        // Key-value stores for custom fields (JSON stringified object)
+  
+  isRevenueImpacting Boolean    @default(false)
+  
+  // Recursion & Hierarchies
+  parentId       String?
+  parent         Task?          @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks       Task[]         @relation("TaskSubtasks")
+  
+  isRecurring    Boolean        @default(false)
+  recurringCron  String?
+  
+  // Dependencies
+  dependencies   TaskDependency[] @relation("DependentTasks")
+  blockedBy      TaskDependency[] @relation("BlockingTasks")
+  
+  // Reviews/Approvals details
+  rejectionReason String?
+  
+  checklists     TaskChecklist[]
+  watchers       TaskWatcher[]
+  comments       TaskComment[]
+  attachments    TaskAttachment[]
+  timeLogs       TimeLog[]
+  histories      TaskHistory[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+// Task Dependency Junction Table
+model TaskDependency {
+  id                String @id @default(uuid())
+  dependentTaskId   String // Task B
+  dependentTask     Task   @relation("DependentTasks", fields: [dependentTaskId], references: [id], onDelete: Cascade)
+  dependsOnTaskId   String // Task A (must finish first)
+  dependsOnTask     Task   @relation("BlockingTasks", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  
+  @@unique([dependentTaskId, dependsOnTaskId])
+}
+
+// Checklist Item
+model TaskChecklist {
+  id          String   @id @default(uuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title       String
+  isCompleted Boolean  @default(false)
+}
+
+// Watchers
+model TaskWatcher {
+  id     String @id @default(uuid())
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+}
+
+// Collaboration Comments
+model TaskComment {
+  id        String        @id @default(uuid())
+  taskId    String
+  task      Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  parentId  String?       // For threaded replies
+  parent    TaskComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   TaskComment[] @relation("CommentReplies")
+  createdAt DateTime      @default(now())
+}
+
+// Attachments
+model TaskAttachment {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  fileType  String
+  fileSize  Int
+  createdAt DateTime @default(now())
+}
+
+// Time Tracking
+model TimeLog {
+  id              String    @id @default(uuid())
+  taskId          String
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime       DateTime
+  endTime         DateTime?
+  durationMinutes Int       @default(0)
+  description     String?
+  createdAt       DateTime  @default(now())
+}
+
+// Performance Goals (OKRs/KPIs)
+model PerformanceGoal {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation("PerformanceGoals", fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  targetValue  Float
+  currentValue Float    @default(0.0)
+  unit         String   @default("%")
+  status       String   @default("PENDING") // PENDING, IN_PROGRESS, ACHIEVED, FAILED
+  startDate    DateTime
+  endDate      DateTime
+  reviewerId   String
+  reviewer     User     @relation("ReviewedGoals", fields: [reviewerId], references: [id])
+}
+
+// Performance Reviews
+model PerformanceReview {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   User     @relation("ReviewedEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   User     @relation("Reviewer", fields: [reviewerId], references: [id])
+  rating     Float    // 1.0 to 5.0
+  feedback   String
+  createdAt  DateTime @default(now())
+}
+
+// Immutable Audit Log
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String   // JSON stringified object
+  ipAddress String
+  userAgent String
+  timestamp DateTime @default(now())
+}
+
+// Immutable Task History Timeline
+model TaskHistory {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     String   // CREATED, UPDATED, ASSIGNED, STATUS_CHANGED, COMMENT_ADDED, COMPLETED, REJECTED
+  oldValue  String?
+  newValue  String?
+  details   String?
+  timestamp DateTime @default(now())
+}
+
+// Notifications
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // TASK_ASSIGNED, TASK_UPDATED, TASK_COMPLETED, TASK_OVERDUE, COMMENT_ADDED, PROJECT_UPDATED
+  isRead    Boolean  @default(false)
+  timestamp DateTime @default(now())
+}
+
+// Saved Filters
+model SavedFilter {
+  id             String @id @default(uuid())
+  userId         String
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  filterCriteria String // Stores search parameters, statuses, priorities (JSON stringified)
+}
+
+// AI Analysis logs
+model AiAnalysis {
+  id          String   @id @default(uuid())
+  targetType  String   // TASK, PROJECT, PERFORMANCE, WEEKLY_REPORT
+  targetId    String
+  summary     String
+  suggestions String   // JSON stringified array/object
+  predictions String   // JSON stringified array/object
+  createdAt   DateTime @default(now())
+}
