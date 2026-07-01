@@ -91,6 +91,18 @@ async function main() {
     },
   });
 
+  // 4. Create Departments (Customer Success, Operations, Marketing, Quality, HR)
+  console.log('Seeding custom departments...');
+  await prisma.department.createMany({
+    data: [
+      { name: 'Customer Success', description: 'Client support, onboarding, and relationship management' },
+      { name: 'Operations', description: 'Business operations, logistics, and workflow optimization' },
+      { name: 'Marketing', description: 'Brand awareness, social media, and client acquisition' },
+      { name: 'Quality', description: 'Quality assurance, compliance, and standards validation' },
+      { name: 'HR', description: 'Human resources, recruitment, and employee relations' },
+    ],
+  });
+
   console.log('Clean database seeding completed successfully!');
 }
 
