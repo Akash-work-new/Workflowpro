@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [otpToken, setOtpToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSpinUpNotice, setShowSpinUpNotice] = useState(false);
 
   // 2FA state
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
@@ -30,6 +31,11 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setShowSpinUpNotice(false);
+
+    const timer = setTimeout(() => {
+      setShowSpinUpNotice(true);
+    }, 3500);
 
     try {
       const res = await login(email, password);
@@ -46,7 +52,9 @@ export default function LoginPage() {
     } catch (err) {
       setError('Connection refused. Is the server running?');
     } finally {
+      clearTimeout(timer);
       setLoading(false);
+      setShowSpinUpNotice(false);
     }
   };
 
@@ -175,6 +183,11 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+            {showSpinUpNotice && (
+              <p className="text-zinc-400 text-[10px] text-center mt-3 animate-pulse leading-normal">
+                ℹ️ The server runs on a Free Tier instance and may take 30-40 seconds to spin up on the first connection. Please wait...
+              </p>
+            )}
           </form>
         ) : (
           <form onSubmit={handle2FASubmit} className="flex flex-col gap-4">
