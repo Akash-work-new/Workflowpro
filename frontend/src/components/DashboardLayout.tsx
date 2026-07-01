@@ -90,7 +90,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   }
   // Super Admin and Admin settings
   if (user.role.name === 'SUPER_ADMIN' || user.role.name === 'ADMIN') {
-    navItems.push({ name: 'Admin Panel', path: '/admin', icon: UserIcon });
+    navItems.push({ name: 'Manager Panel', path: '/admin', icon: UserIcon });
   }
 
   const getStatusColor = (s: string) => {

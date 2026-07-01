@@ -207,7 +207,7 @@ export default function AdminControlPanelPage() {
             }}>⚙️</div>
             <div>
               <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>
-                {user?.role?.name === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'} Control Panel
+                {user?.role?.name === 'SUPER_ADMIN' ? 'Super Admin' : 'Manager'} Control Panel
               </h1>
               <p style={{ color: '#6b7280', fontSize: '14px', margin: '2px 0 0' }}>
                 Full system control — user management &amp; data administration
@@ -343,7 +343,7 @@ export default function AdminControlPanelPage() {
                             padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700,
                             background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)',
                           }}>
-                            {u.role?.name?.replace('_', ' ')}
+                            {u.role?.name === 'ADMIN' ? 'MANAGER' : u.role?.name?.replace('_', ' ')}
                           </span>
                         </td>
                         <td style={{ padding: '14px 16px', color: '#9ca3af', fontSize: '14px' }}>
@@ -629,7 +629,7 @@ export default function AdminControlPanelPage() {
                       }}
                     >
                       {roles.filter(r => r.name !== 'SUPER_ADMIN').map(r => (
-                        <option key={r.id} value={r.name} style={{ background: '#1f2937' }}>{r.name.replace('_', ' ')}</option>
+                        <option key={r.id} value={r.name} style={{ background: '#1f2937' }}>{r.name === 'ADMIN' ? 'MANAGER' : r.name.replace('_', ' ')}</option>
                       ))}
                     </select>
                   </div>
