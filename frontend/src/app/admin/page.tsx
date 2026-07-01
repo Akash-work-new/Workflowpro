@@ -89,7 +89,7 @@ export default function AdminControlPanelPage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') {
+    if (user?.role?.name !== 'SUPER_ADMIN' && user?.role?.name !== 'ADMIN') {
       router.push('/dashboard');
       return;
     }
@@ -176,7 +176,7 @@ export default function AdminControlPanelPage() {
     }
   };
 
-  if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN') return null;
+  if (user?.role?.name !== 'SUPER_ADMIN' && user?.role?.name !== 'ADMIN') return null;
 
   return (
     <DashboardLayout>
@@ -207,7 +207,7 @@ export default function AdminControlPanelPage() {
             }}>⚙️</div>
             <div>
               <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>
-                {user?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'} Control Panel
+                {user?.role?.name === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'} Control Panel
               </h1>
               <p style={{ color: '#6b7280', fontSize: '14px', margin: '2px 0 0' }}>
                 Full system control — user management &amp; data administration
@@ -243,7 +243,7 @@ export default function AdminControlPanelPage() {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
           {[
             { key: 'users', label: '👥 User Management' },
-            ...(user?.role === 'SUPER_ADMIN' ? [{ key: 'reset', label: '💣 Factory Reset' }] : []),
+            ...(user?.role?.name === 'SUPER_ADMIN' ? [{ key: 'reset', label: '💣 Factory Reset' }] : []),
           ].map((tab) => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} style={{
               padding: '10px 24px', borderRadius: '10px', border: 'none', cursor: 'pointer',
