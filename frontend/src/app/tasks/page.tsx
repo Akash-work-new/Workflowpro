@@ -12,7 +12,12 @@ import {
   User,
   ArrowUpDown,
   Tag,
-  Zap
+  Zap,
+  AlertTriangle,
+  Send,
+  Paperclip,
+  Image as ImageIcon,
+  ArrowUpRight
 } from 'lucide-react';
 
 export default function TasksPage() {
@@ -44,6 +49,71 @@ export default function TasksPage() {
   });
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
+
+  // Task detail modal states
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleStatusTransition = async (taskId: string, newStatus: string) => {
+    const res = await api.put(`/tasks/${taskId}`, { status: newStatus });
+    if (res.success) {
+      fetchTasks();
+      if (selectedTask?.id === taskId) {
+        const detailRes = await api.get(`/tasks/${taskId}`);
+        if (detailRes.success) setSelectedTask(detailRes.data);
+      }
+    } else {
+      alert(res.error?.message || 'Failed to update status.');
+    }
+  };
+
+  const handleAddRemark = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTask) return;
+    if (!commentText && !selectedFile) return;
+
+    setUploading(true);
+
+    try {
+      // 1. Upload attachment if file selected
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        const uploadRes = await api.post(`/collaboration/tasks/${selectedTask.id}/attachments`, formData);
+        if (!uploadRes.success) {
+          alert(uploadRes.error?.message || 'Failed to upload attachment');
+          setUploading(false);
+          return;
+        }
+      }
+
+      // 2. Submit comment/remark if text written
+      if (commentText) {
+        const commentRes = await api.post(`/tasks/${selectedTask.id}/comments`, { content: commentText });
+        if (!commentRes.success) {
+          alert(commentRes.error?.message || 'Failed to add comment');
+        }
+      }
+
+      setCommentText('');
+      setSelectedFile(null);
+
+      // 3. Reload task details
+      const detailRes = await api.get(`/tasks/${selectedTask.id}`);
+      if (detailRes.success) {
+        setSelectedTask(detailRes.data);
+      }
+      fetchTasks();
+    } catch (err) {
+      console.error(err);
+      alert('Error adding remark');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const fetchProjectsAndUsers = async () => {
     try {
@@ -252,9 +322,16 @@ export default function TasksPage() {
                 {tasks.map((task) => (
                   <tr
                     key={task.id}
-                    className="border-b border-slate-200 dark:border-zinc-800/80 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-all"
+                    onClick={async () => {
+                      const res = await api.get(`/tasks/${task.id}`);
+                      if (res.success) {
+                        setSelectedTask(res.data);
+                        setShowDetailModal(true);
+                      }
+                    }}
+                    className="border-b border-slate-200 dark:border-zinc-800/80 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-all cursor-pointer"
                   >
-                    <td className="p-4 text-center">
+                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedTaskIds.includes(task.id)}
@@ -463,6 +540,188 @@ export default function TasksPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ================================================== */}
+        {/* TASK DETAILS DRAWER PANEL */}
+        {/* ================================================== */}
+        {showDetailModal && selectedTask && (
+          <div className="fixed inset-y-0 right-0 w-full max-w-xl bg-white dark:bg-zinc-900 shadow-2xl border-l border-slate-200 dark:border-zinc-800 z-[999] flex flex-col justify-between p-6 animate-slide-in">
+            <div className="flex-1 overflow-y-auto pr-2 flex flex-col gap-6 text-xs">
+              {/* Drawer header */}
+              <div className="flex justify-between items-start border-b border-slate-200 dark:border-zinc-800 pb-4">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    {selectedTask.project?.name.substring(0, 3).toUpperCase()}-{selectedTask.taskIndex}
+                  </span>
+                  <h3 className="text-lg font-bold font-outfit mt-1 text-slate-800 dark:text-zinc-100">
+                    {selectedTask.title}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setSelectedTask(null);
+                  }}
+                  className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center text-slate-500 text-base"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Status Transition Panel */}
+              <div className="p-4 bg-slate-50 dark:bg-zinc-800/30 rounded-xl border border-slate-200 dark:border-zinc-800/80 flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-slate-500">Task Status:</span>
+                  <select
+                    value={selectedTask.status}
+                    onChange={(e) => handleStatusTransition(selectedTask.id, e.target.value)}
+                    className="bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3 py-1.5 rounded-lg text-slate-800 dark:text-white font-bold focus:outline-none"
+                  >
+                    {['BACKLOG', 'TODO', 'IN_PROGRESS', 'WAITING_FOR_REVIEW', 'COMPLETED'].map((st) => (
+                      <option key={st} value={st}>{st.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Description Panel */}
+              <div className="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-zinc-800/20 rounded-xl border border-slate-200 dark:border-zinc-800/50">
+                <span className="font-bold text-slate-500 uppercase tracking-wider">Description</span>
+                <p className="text-slate-600 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed">
+                  {selectedTask.description || 'No description provided.'}
+                </p>
+              </div>
+
+              {/* Details grid */}
+              <div className="grid grid-cols-2 gap-4 p-4 border border-slate-200 dark:border-zinc-800 rounded-xl">
+                <div>
+                  <span className="text-slate-400 block mb-1">Project</span>
+                  <span className="font-bold text-slate-800 dark:text-zinc-200">{selectedTask.project?.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-1">Assignee</span>
+                  <span className="font-bold text-slate-800 dark:text-zinc-200">{selectedTask.assignedTo?.name || 'Unassigned'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-1">Priority</span>
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase inline-block ${
+                    selectedTask.priority === 'CRITICAL' ? 'priority-critical' : selectedTask.priority === 'HIGH' ? 'priority-high' : 'priority-medium'
+                  }`}>{selectedTask.priority}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block mb-1">Due Date</span>
+                  <span className="font-bold text-slate-800 dark:text-zinc-200">
+                    {selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : 'No deadline'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Attachments Section */}
+              <div>
+                <h4 className="font-bold mb-3 flex items-center gap-1 text-slate-700 dark:text-zinc-300">
+                  <Paperclip className="w-4 h-4 text-slate-400" />
+                  <span>Task Snips &amp; Attachments</span>
+                </h4>
+                
+                {(!selectedTask.attachments || selectedTask.attachments.length === 0) ? (
+                  <p className="text-slate-400 italic text-[11px] py-2">No attachments uploaded yet. Add snips in the remarks section below.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {selectedTask.attachments.map((att: any) => {
+                      const isImage = att.fileType.startsWith('image/');
+                      const fullUrl = `${process.env.NEXT_PUBLIC_SOCKET_URL || 'https://workflowpro-bytp.onrender.com'}${att.fileUrl}`;
+                      return (
+                        <div key={att.id} className="relative group border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800/50 aspect-video flex flex-col justify-end">
+                          {isImage ? (
+                            <img src={fullUrl} alt={att.fileName} className="absolute inset-0 w-full h-full object-cover" />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-lg">📄</div>
+                          )}
+                          <a
+                            href={fullUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="bg-black/70 hover:bg-black/90 text-white font-bold p-1 text-[10px] text-center w-full truncate relative z-10 flex items-center justify-center gap-0.5"
+                          >
+                            <span>{att.fileName}</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                          </a>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Remarks/Comments Section */}
+              <div>
+                <h4 className="font-bold mb-3 flex items-center gap-1 text-slate-700 dark:text-zinc-300">
+                  <ListTodo className="w-4 h-4 text-slate-400" />
+                  <span>Remarks Log</span>
+                </h4>
+                
+                {/* Remarks Form */}
+                <form onSubmit={handleAddRemark} className="flex flex-col gap-3 p-3 bg-slate-50 dark:bg-zinc-800/30 rounded-xl border border-slate-200 dark:border-zinc-800/80 mb-4">
+                  <textarea
+                    placeholder="Log what you have done in this task..."
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3 py-2 rounded-lg text-slate-800 dark:text-white focus:outline-none h-16 resize-none"
+                  />
+                  
+                  <div className="flex justify-between items-center">
+                    {/* Image / Snip input */}
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 rounded-lg cursor-pointer transition-all">
+                        <ImageIcon className="w-3.5 h-3.5 text-sky-400" />
+                        <span>{selectedFile ? 'Image Selected' : 'Attach Snip'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                          className="hidden"
+                        />
+                      </label>
+                      {selectedFile && (
+                        <span className="text-[10px] text-slate-400 max-w-[120px] truncate">{selectedFile.name}</span>
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={uploading || (!commentText && !selectedFile)}
+                      className="px-4 py-2 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-bold rounded-lg transition-all shadow-md shadow-sky-500/10 flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {uploading ? 'Uploading...' : (
+                        <>
+                          <Send className="w-3 h-3" />
+                          <span>Submit Remark</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Remarks list */}
+                <div className="flex flex-col gap-3 max-h-60 overflow-y-auto">
+                  {(!selectedTask.comments || selectedTask.comments.length === 0) ? (
+                    <p className="text-slate-400 italic text-[11px] text-center py-4">No remarks logged yet.</p>
+                  ) : (
+                    selectedTask.comments.map((comm: any) => (
+                      <div key={comm.id} className="p-3 bg-slate-50 dark:bg-zinc-800/40 rounded-xl border border-slate-200 dark:border-zinc-800/50">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-bold text-slate-700 dark:text-zinc-300">{comm.user?.name}</span>
+                          <span className="text-[10px] text-slate-400">{new Date(comm.createdAt).toLocaleString()}</span>
+                        </div>
+                        <p className="text-slate-600 dark:text-zinc-400 whitespace-pre-wrap">{comm.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
