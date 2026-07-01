@@ -30,6 +30,74 @@ export default function TasksPage() {
   const [bulkPriority, setBulkPriority] = useState('');
   const [bulkMessage, setBulkMessage] = useState('');
 
+  // Create Task states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [createForm, setCreateForm] = useState({
+    title: '',
+    description: '',
+    projectId: '',
+    assignedToId: '',
+    priority: 'MEDIUM',
+    dueDate: '',
+  });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  const fetchProjectsAndUsers = async () => {
+    try {
+      const [projRes, userRes] = await Promise.all([
+        api.get('/projects'),
+        api.get('/users'),
+      ]);
+      if (projRes.success && projRes.data) setProjects(projRes.data);
+      if (userRes.success && userRes.data) setUsers(userRes.data);
+    } catch (e) {
+      console.error('Failed to load projects/users for task creation', e);
+    }
+  };
+
+  useEffect(() => {
+    if (showCreateModal) {
+      fetchProjectsAndUsers();
+    }
+  }, [showCreateModal]);
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateLoading(true);
+    setCreateError('');
+    if (!createForm.title || !createForm.projectId) {
+      setCreateError('Task Title and Project are required.');
+      setCreateLoading(false);
+      return;
+    }
+    const res = await api.post('/tasks', {
+      title: createForm.title,
+      description: createForm.description || undefined,
+      projectId: createForm.projectId,
+      assignedToId: createForm.assignedToId || undefined,
+      priority: createForm.priority,
+      dueDate: createForm.dueDate || undefined,
+    });
+    if (res.success) {
+      setShowCreateModal(false);
+      setCreateForm({
+        title: '',
+        description: '',
+        projectId: '',
+        assignedToId: '',
+        priority: 'MEDIUM',
+        dueDate: '',
+      });
+      fetchTasks();
+    } else {
+      setCreateError(res.error?.message || 'Failed to create task');
+    }
+    setCreateLoading(false);
+  };
+
   const fetchTasks = async () => {
     setLoading(true);
     let query = '';
@@ -96,6 +164,12 @@ export default function TasksPage() {
             <h1 className="text-3xl font-extrabold font-outfit tracking-tight">Tasks Console</h1>
             <p className="text-sm text-slate-500 mt-1">Cross-project task queries, metrics, and bulk operations.</p>
           </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white text-xs font-bold rounded-lg transition-all shadow-md shadow-sky-500/10 animate-fade-in"
+          >
+            <span>+</span> Create Task
+          </button>
         </div>
 
         {/* Filters Panel */}
@@ -262,6 +336,134 @@ export default function TasksPage() {
         {bulkMessage && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-sky-500 text-white text-xs px-4 py-2 rounded-lg shadow-lg z-50">
             {bulkMessage}
+          </div>
+        )}
+
+        {/* Create Task Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel w-full max-w-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-zinc-800 mb-6">
+                <div>
+                  <h3 className="font-extrabold text-lg tracking-tight">Create Task</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Initialize a task assignment on the workspace</p>
+                </div>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center text-slate-500 text-lg"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {createError && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-500 text-xs rounded-lg p-3 mb-4">
+                  ⚠️ {createError}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateTask} className="flex flex-col gap-4 text-xs">
+                {/* Task Title */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-500 uppercase tracking-wider">Task Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Describe the action item..."
+                    value={createForm.title}
+                    onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                    className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 font-semibold focus:outline-none"
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-500 uppercase tracking-wider">Description</label>
+                  <textarea
+                    placeholder="Provide additional details or checklists..."
+                    value={createForm.description}
+                    onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                    className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 font-semibold focus:outline-none h-20 resize-none"
+                  />
+                </div>
+
+                {/* Project Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-500 uppercase tracking-wider">Project *</label>
+                  <select
+                    required
+                    value={createForm.projectId}
+                    onChange={(e) => setCreateForm({ ...createForm, projectId: e.target.value })}
+                    className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 font-semibold focus:outline-none"
+                  >
+                    <option value="">Select Project</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Assignee Dropdown */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-500 uppercase tracking-wider">Assignee</label>
+                  <select
+                    value={createForm.assignedToId}
+                    onChange={(e) => setCreateForm({ ...createForm, assignedToId: e.target.value })}
+                    className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 font-semibold focus:outline-none"
+                  >
+                    <option value="">Unassigned</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role?.name?.replace('_', ' ')})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Priority & Due Date */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-bold text-slate-500 uppercase tracking-wider">Priority *</label>
+                    <select
+                      required
+                      value={createForm.priority}
+                      onChange={(e) => setCreateForm({ ...createForm, priority: e.target.value })}
+                      className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 font-semibold focus:outline-none"
+                    >
+                      <option value="CRITICAL">Critical</option>
+                      <option value="HIGH">High</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="LOW">Low</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-bold text-slate-500 uppercase tracking-wider">Deadline Date</label>
+                    <input
+                      type="date"
+                      value={createForm.dueDate}
+                      onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value })}
+                      className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 font-semibold focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-zinc-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 font-semibold rounded-lg transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createLoading}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 text-white font-bold rounded-lg transition-all shadow-md shadow-sky-500/10"
+                  >
+                    {createLoading ? 'Creating...' : 'Create Task'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>

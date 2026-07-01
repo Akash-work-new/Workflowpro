@@ -87,6 +87,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   // Super Admin view logs
   if (user.role.name === 'SUPER_ADMIN') {
     navItems.push({ name: 'Audit Logs', path: '/audit-logs', icon: History });
+  }
+  // Super Admin and Admin settings
+  if (user.role.name === 'SUPER_ADMIN' || user.role.name === 'ADMIN') {
     navItems.push({ name: 'Admin Panel', path: '/admin', icon: UserIcon });
   }
 

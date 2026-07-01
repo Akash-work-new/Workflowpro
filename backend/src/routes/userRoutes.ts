@@ -31,9 +31,11 @@ router.get('/', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN', 'TEAM_LEAD']),
 router.put('/:userId/role', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), updateUserRole);
 router.put('/:userId/status', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), updateUserStatus);
 
+// ── Super Admin and Admin ────────────────────────────────────────────────────
+router.post('/', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), createUser);
+router.delete('/:userId', requireAuth, requireRole(['SUPER_ADMIN', 'ADMIN']), deleteUser);
+
 // ── Super Admin only ─────────────────────────────────────────────────────────
-router.post('/', requireAuth, requireRole(['SUPER_ADMIN']), createUser);
-router.delete('/:userId', requireAuth, requireRole(['SUPER_ADMIN']), deleteUser);
 router.post('/admin/factory-reset', requireAuth, requireRole(['SUPER_ADMIN']), factoryReset);
 
 export default router;
