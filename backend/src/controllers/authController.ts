@@ -158,7 +158,10 @@ export const login = async (req: Request, res: Response) => {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role.name,
+          role: {
+            name: user.role.name,
+            permissions: typeof user.role.permissions === 'string' ? JSON.parse(user.role.permissions) : user.role.permissions,
+          },
           status: user.status,
           profilePhoto: user.profilePhoto,
         },
@@ -332,7 +335,10 @@ export const verify2FA = async (req: Request, res: Response) => {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role.name,
+          role: {
+            name: user.role.name,
+            permissions: typeof user.role.permissions === 'string' ? JSON.parse(user.role.permissions) : user.role.permissions,
+          },
           status: user.status,
           profilePhoto: user.profilePhoto,
         },

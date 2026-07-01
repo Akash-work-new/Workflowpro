@@ -35,7 +35,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function AdminControlPanelPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -89,12 +89,13 @@ export default function AdminControlPanelPage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role?.name !== 'SUPER_ADMIN' && user?.role?.name !== 'ADMIN') {
+    if (authLoading) return;
+    if (!user || (user.role?.name !== 'SUPER_ADMIN' && user.role?.name !== 'ADMIN')) {
       router.push('/dashboard');
       return;
     }
     fetchData();
-  }, [user, router, fetchData]);
+  }, [user, authLoading, router, fetchData]);
 
   // ── Create User ──────────────────────────────────────────────────────────
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -176,7 +177,15 @@ export default function AdminControlPanelPage() {
     }
   };
 
-  if (user?.role?.name !== 'SUPER_ADMIN' && user?.role?.name !== 'ADMIN') return null;
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-screen bg-zinc-950 flex items-center justify-center text-white font-bold animate-pulse text-xs">
+        AUTHENTICATING SESSION...
+      </div>
+    );
+  }
+
+  if (!user || (user.role?.name !== 'SUPER_ADMIN' && user.role?.name !== 'ADMIN')) return null;
 
   return (
     <DashboardLayout>

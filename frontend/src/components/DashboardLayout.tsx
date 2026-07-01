@@ -25,7 +25,7 @@ import {
 import { api } from '../lib/api';
 
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, logout, updateUserStatus } = useAuth();
+  const { user, loading, logout, updateUserStatus } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -67,6 +67,14 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (user) fetchNotifications();
   }, [user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen w-screen bg-zinc-950 flex items-center justify-center text-white font-bold animate-pulse text-xs">
+        AUTHENTICATING SESSION...
+      </div>
+    );
+  }
 
   if (!user) {
     if (typeof window !== 'undefined' && pathname !== '/login') {

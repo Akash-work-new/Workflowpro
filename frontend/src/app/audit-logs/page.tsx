@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { History, ShieldAlert, Cpu } from 'lucide-react';
 
 export default function AuditLogsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,12 +21,20 @@ export default function AuditLogsPage() {
   };
 
   useEffect(() => {
-    if (user && user.role.name === 'SUPER_ADMIN') {
+    if (!authLoading && user && user.role?.name === 'SUPER_ADMIN') {
       fetchAuditLogs();
     }
-  }, [user]);
+  }, [user, authLoading]);
 
-  if (!user || user.role.name !== 'SUPER_ADMIN') {
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-screen bg-zinc-950 flex items-center justify-center text-white font-bold animate-pulse text-xs">
+        AUTHENTICATING SESSION...
+      </div>
+    );
+  }
+
+  if (!user || user.role?.name !== 'SUPER_ADMIN') {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-20 text-center">
